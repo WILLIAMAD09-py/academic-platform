@@ -21,7 +21,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 from core import __version__
 from core.config import Settings
 from core.db import Database
-from core.errors import register_exception_handlers
+from core.error_handlers import register_exception_handlers
 from core.logging import configure_logging, context_scope
 
 logger = logging.getLogger("core.app")

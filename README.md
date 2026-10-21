@@ -8,8 +8,8 @@ imprimibles, claves aleatorizadas y resumen de hoja de respuestas.
 - Suposiciones: [`docs/ASSUMPTIONS.md`](docs/ASSUMPTIONS.md)
 - Decisiones de arquitectura: [`docs/ADR/`](docs/ADR/)
 
-> **Estado:** Fase 1 en curso. Los pasos 1 (scaffolding) y 2 (núcleo `src/core/`) están completos; los
-> pasos 3–12 están pendientes.
+> **Estado:** Fase 1 en curso. Los pasos 1 (scaffolding), 2 (núcleo `src/core/`) y 3 (dominio de
+> exámenes) están completos; los pasos 4–12 están pendientes.
 
 ## Stack
 
@@ -86,7 +86,8 @@ docker compose --profile test run --rm tests
 |--------|-----------------|
 | `core/config.py` | `Settings` (Pydantic v2, inmutable) leída del entorno, con validación temprana del URL de base de datos, del nivel de log y de los rangos de negocio. |
 | `core/logging.py` | Logging estructurado en JSON con `exam_id`, `exam_code` y `request_id` en cada línea, propagados con `contextvars`. |
-| `core/errors.py` | Jerarquía de errores (`NotFoundError`, `ConflictError`, `InvalidStateError`, `ValidationFailedError`, `ExternalServiceError`) y su envelope JSON. |
+| `core/errors.py` | Jerarquía de errores (`NotFoundError`, `ConflictError`, `InvalidStateError`, `ValidationFailedError`, `ExternalServiceError`). Módulo puro: sin dependencias de web. |
+| `core/error_handlers.py` | Envoltura de error y manejadores de excepción de FastAPI (capa de presentación). |
 | `core/db.py` | Engine asíncrono agnóstico al motor (SQLite / PostgreSQL), `Base` declarativa, sesiones y dependencia `get_session`. |
 | `core/jobs.py` | Interfaz `JobRunner` (`Protocol`) e implementación `InlineJobRunner`, lista para sustituirse por Celery/RQ. |
 | `core/audit.py` | Interfaz `AuditLog` (`Protocol`) e implementación `InMemoryAuditLog`. |
@@ -94,6 +95,21 @@ docker compose --profile test run --rm tests
 
 Decisiones que lo gobiernan: [ADR-0003](docs/ADR/0003-nucleo-sin-estado-global.md) (núcleo sin estado
 global) y [ADR-0004](docs/ADR/0004-logging-estructurado-contextvars.md) (logging con `contextvars`).
+
+## Dominio (`src/modules/exams/domain/`)
+
+Capa **pura**: no importa FastAPI, SQLAlchemy ni la persistencia (verificado por
+`tests/unit/test_domain_purity.py`).
+
+| Módulo | Responsabilidad |
+|--------|-----------------|
+| `domain/models.py` | Agregado `Exam` (cabecera, secciones, preguntas, incisos, bloques, grupos de enunciado) y los objetos que lo rodean (clave, documentos, revisiones, eventos de auditoría). Todo es inmutable. |
+| `domain/rules.py` | Reglas de negocio puras: cantidad de preguntas, cabecera, secciones, bloques, incisos y respuesta correcta. Devuelve incidencias con dos niveles: **error** (bloquea) y **aviso** (no bloquea). |
+| `domain/weights.py` | Reparto de la ponderación: los pesos suman exactamente 100,00 y la última pregunta absorbe el redondeo. |
+| `domain/states.py` | `ExamStatus` (14 estados) y el grafo de transiciones permitidas; `assert_transition` lanza `InvalidTransitionError` (409). |
+
+Decisión que lo gobierna: [ADR-0005](docs/ADR/0005-maquina-de-estados-explicita.md) (máquina de estados
+explícita).
 
 ## Ejecución del examen de ejemplo
 

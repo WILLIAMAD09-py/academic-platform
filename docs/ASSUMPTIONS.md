@@ -196,3 +196,92 @@ Consecuencia visible: las líneas de *access log* de Uvicorn se emiten fuera del
 middleware (las registra el servidor, no la aplicación), así que llegan con `request_id: null`. Los
 logs de la propia aplicación (los que interesan para trazar un examen) sí llevan el identificador.
 
+### A28 — `core.errors` queda puro y los manejadores HTTP se separan
+En el paso 2, `core/errors.py` contenía las excepciones **y** su traducción a respuestas HTTP (FastAPI
+y SQLAlchemy incluidos). Eso impedía que el dominio heredara de `InvalidStateError` sin arrastrar la
+capa web en su grafo de imports. En el paso 3 el módulo se parte en dos:
+
+- `core/errors.py`: solo la jerarquía de excepciones (biblioteca estándar).
+- `core/error_handlers.py`: `error_envelope()` y `register_exception_handlers()` (capa de presentación).
+
+Consecuencia: `modules.exams.domain` puede depender de `core.errors` sin depender de FastAPI, y el
+dominio hereda la taxonomía de errores del núcleo (un `InvalidTransitionError` sale como 409 sin
+traducción adicional).
+
+### A29 — El dominio no lee la configuración; recibe los límites como datos
+Las reglas de negocio necesitan límites (mínimo y máximo de preguntas, máximo de incisos, longitud
+máxima de texto). El dominio no puede leer `Settings` (eso lo ata al entorno y lo hace no determinista
+en las pruebas), así que los recibe en una estructura inmutable `RuleLimits`, que la capa de
+aplicación construye a partir de `core.config.Settings`.
+
+Sus valores por defecto coinciden con los de la configuración (25–50 preguntas, 2–4 incisos, 2000
+caracteres) y hay un test que verifica la sincronía, de modo que un cambio en uno rompe la suite si el
+otro no se actualiza.
+
+### A30 — Las reglas devuelven incidencias con código estable y dos niveles
+Cada regla es una función pura que devuelve `ValidationIssue(code, field, message, severity,
+location)`. Los códigos son estables (`EXAM_CODE_FORMAT`, `OPTION_CORRECT_COUNT`, `BLOCK_EMPTY`...) y
+se usan como contrato para la API y los tests, no como texto libre.
+
+El prompt no distingue entre "error" y "aviso" en las reglas, pero sí lo hace en el resultado del
+pipeline (`COMPLETED` frente a `COMPLETED_WITH_WARNINGS`, sección 5). Por eso las reglas devuelven dos
+niveles: **error** (impide continuar) y **aviso** (no bloquea, pero el pipeline puede acabarse en
+`COMPLETED_WITH_WARNINGS`).
+
+**Pendiente de confirmar:** qué reglas son error y cuáles aviso. Hoy son error las estructurales
+(cantidad de preguntas, incisos, secciones, bloques, cabecera, código) y aviso las tres heurísticas
+(referencias a otros incisos, orden natural y enunciados duplicados).
+
+### A31 — La unicidad del `exam_code` la comprueba la aplicación, no el dominio
+El prompt pide que el `exam_code` sea único y que la duplicación sea un 409. El dominio no tiene
+acceso a la base de datos, así que `validate_exam_code` recibe el conjunto de códigos ya existentes y
+compara. La aplicación (paso 4/9) lo alimentará con una consulta a la tabla de exámenes; además, la
+base de datos impose la restricción única como segunda barrera.
+
+### A32 — La detección de referencias a otros incisos es por frases, y puede dar falsos positivos
+Las heurísticas de "orden natural" y "referencia a otros incisos" del prompt están expresadas en
+lenguaje natural ("todas las anteriores", "ninguna de las anteriores", "a y b son correctas", "ambas",
+"las dos anteriores", "de menor a mayor", "en orden cronológico", "fechas", "números"). Se detectan
+sobre el texto normalizado (minúsculas, sin acentos, sin puntuación) y producen un **aviso**, nunca un
+error: el sistema no puede saber con certeza si "ambas" es una referencia a incisos o parte de otro
+enunciado.
+
+Consecuencia asumida: puede haber falsos positivos (por ejemplo, "ambas personas"). El aviso pide
+desactivar `shuffle_options` en esa pregunta, que es una decisión conservative y reversible.
+
+### A33 — La ponderación reparte 100,00 y la última pregunta absorbe el redondeo
+La sección 6 del prompt exige que los pesos sumen el total del examen. Con 25 preguntas, 4,00 cada
+una es exacto; con 3, 33,33 + 33,33 + 33,34 también. Se reparte la base redondeada a dos decimales
+(`ROUND_HALF_UP`) y **la última pregunta absorbe la diferencia**, de modo que la suma es exactamente
+100,00 y nunca hay un residuo por coma flotante.
+
+**Pendiente de confirmar:** si el docente espera ver el peso repartido de forma uniforme (por ejemplo
+33,33 / 33,33 / 33,34) o un reparto "bonito" (33,3 / 33,3 / 33,4). Se eligió el primero porque
+garantiza la suma exacta.
+
+### A34 — El estado vive en el agregado y el ciclo es reiniciable
+`Exam.status` es parte del agregado (ver ADR-0005). Desde un examen ya procesado
+(`KEYS_GENERATED`, `DOCUMENTS_GENERATED`, `COMPLETED`, `COMPLETED_WITH_WARNINGS`, `PRINT_PENDING`,
+`ANSWER_SHEETS_PENDING`) se puede volver a `DRAFT` para reprocesarlo tras una edición, que es lo que
+pide la sección 16 (reanudación y reproceso).
+
+`NEEDS_TEACHER_DECISION` es un estado de **espera**, no de error: de ahí solo se sale hacia
+`QUESTIONS_REVIEWED` (el docente aprueba) o `FAILED` (rechaza). El prompt no detalla el flujo de esa
+decisión; el paso 9 (API) lo concretará.
+
+### A35 — El modelo de revisión de preguntas se adelanta al dominio
+La sección 18 del prompt sitúa la "revisión de preguntas" en un paso posterior, pero el modelo de
+datos la incluye (etiqueta BIEN/MAL por pregunta encontrada). En el paso 3 el dominio declara los
+vocabularios (`ReviewStatus`, `ReviewLabel` BIEN/MAL, `ReviewReason`, `DecisionType`, `ReviewAttempt`,
+`ReviewDecision`) **sin implementar la lógica de revisión**, que corresponde al paso 7.
+
+Los motivos de revisión (`AMBIGUOUS`, `INCOMPLETE`, `INCORRECT`, `DUPLICATED`, `OUT_OF_RANGE`,
+`REFERENCES_OTHER_OPTIONS`) son una propuesta propia: el prompt no los enumera.
+
+### A36 — `ExamAuditEvent` (dominio) y `AuditEvent` (núcleo) son cosas distintas
+El núcleo define `AuditEvent` (`core.audit`) como el evento genérico de auditoría de la aplicación. El
+dominio de exámenes define `ExamAuditEvent`, que además de `from_status`/`to_status` transporta el
+estado concreto de la transición. No se fusionan para no acoplar el dominio a la bitácora genérica
+(que además hoy es en memoria: ver A26).
+
+

@@ -30,6 +30,11 @@ Estrategia de pruebas del proyecto. Se define **antes** de implementar cada paso
 | Aplicación | Unitaria | Fábrica, ciclo de vida, middleware, healthchecks | `tests/unit/test_app.py` |
 | API HTTP | Integración | `TestClient` contra la app real: errores, cabeceras, health | `tests/integration/test_app_http.py` |
 | Estructura | Unitaria | Layout, imports prohibidos, sin APIs externas de IA | `tests/unit/test_scaffolding.py`, `tests/unit/test_no_external_ai_apis.py` |
+| Dominio: modelo | Unitaria | Agregado inmutable, relaciones, transiciones y evento de auditoría | `tests/unit/test_domain_models.py` |
+| Dominio: reglas | Unitaria | Errores y avisos de cada regla, límites, agregación | `tests/unit/test_domain_rules.py` |
+| Dominio: ponderación | Unitaria | Suma exacta de 100,00, reparto y casos límite | `tests/unit/test_domain_weights.py` |
+| Dominio: estados | Unitaria | Tabla de transiciones permitidas y prohibidas, estados finales | `tests/unit/test_domain_states.py` |
+| Dominio: pureza | Unitaria | El dominio no importa web, ORM ni persistencia | `tests/unit/test_domain_purity.py` |
 | Despliegue | Humo (Docker) | Build, stack arriba, `/health`, suite dentro del contenedor | `docs/ASSUMPTIONS.md` (A20) |
 
 ## Casos de prueba característicos del núcleo (Fase 1)
@@ -46,6 +51,20 @@ Estrategia de pruebas del proyecto. Se define **antes** de implementar cada paso
 - **Disponibilidad**: `/health` responde sin tocar la base de datos; `/health/ready` consulta la base
   de datos y responde `503` (sin filtrar el detalle del error) si no está disponible.
 - **CORS**: solo los orígenes configurados reciben `Access-Control-Allow-Origin`.
+
+## Casos de prueba característicos del dominio (paso 3)
+
+- **Reglas**: un examen válido no produce incidencias; un código de examen con menos de cinco dígitos
+  o ya existente produce error; una pregunta con dos incisos correctos produce error; una pregunta
+  abierta produce un error explícito (`QUESTION_TYPE_UNSUPPORTED`).
+- **Avisos**: un enunciado que dice "todas las anteriores" produce aviso (no error); dos preguntas con
+  el mismo enunciado (comparado tras normalizar) producen aviso.
+- **Ponderación**: los pesos suman **exactamente** 100,00 para cualquier cantidad de preguntas
+  (1–50) y la última pregunta absorbe la diferencia de redondeo.
+- **Estados**: las transiciones permitidas y prohibidas se comprueban con una tabla; una transición no
+  permitida lanza `InvalidTransitionError` (409) y **no** modifica el examen.
+- **Pureza**: en un proceso limpio, importar el dominio no carga FastAPI, SQLAlchemy, Pydantic ni
+  Starlette; el análisis de imports prohíbe además `api` e `infrastructure`.
 
 ## Anti-patrones evitados
 
