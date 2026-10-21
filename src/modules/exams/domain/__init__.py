@@ -31,6 +31,7 @@ from modules.exams.domain.models import (
     Transition,
 )
 from modules.exams.domain.rules import (
+    CONFLICT_CODES,
     RuleLimits,
     RuleResult,
     Severity,
@@ -68,6 +69,7 @@ from modules.exams.domain.weights import (
 
 __all__ = [
     "ALLOWED_TRANSITIONS",
+    "CONFLICT_CODES",
     "ESTADOS_FINALES",
     "LETRAS_INCISO",
     "TOTAL_WEIGHT",

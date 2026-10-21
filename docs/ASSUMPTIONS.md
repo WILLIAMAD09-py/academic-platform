@@ -275,13 +275,67 @@ datos la incluye (etiqueta BIEN/MAL por pregunta encontrada). En el paso 3 el do
 vocabularios (`ReviewStatus`, `ReviewLabel` BIEN/MAL, `ReviewReason`, `DecisionType`, `ReviewAttempt`,
 `ReviewDecision`) **sin implementar la lógica de revisión**, que corresponde al paso 7.
 
-Los motivos de revisión (`AMBIGUOUS`, `INCOMPLETE`, `INCORRECT`, `DUPLICATED`, `OUT_OF_RANGE`,
-`REFERENCES_OTHER_OPTIONS`) son una propuesta propia: el prompt no los enumera.
+Los vocabularios son **los del prompt**, no una propuesta propia: `review_status` con los ocho valores
+de la sección 7 (`PENDING`, `GOOD`, `AI_APPLIED`, `AI_PROPOSAL_PENDING`, `AMBIGUOUS_AWAITING_DECISION`,
+`KEPT_ORIGINAL_WITH_WARNING`, `RESOLVED`, `NEEDS_HUMAN`), `reasons` con los ocho códigos de la sección 9
+(`AMBIGUA`, `REBUSCADA`, `MAL_REDACTADA`, `ERRATA_ORTOGRAFICA`, `RESPUESTA_INCORRECTA_PROBABLE`,
+`INCISOS_DUPLICADOS`, `DISTRACTOR_EVIDENTE`, `REFERENCIA_A_OTRO_INCISO`) y `decision` con los cinco
+valores de las secciones 9 y 12 (`UNDO_AI_CORRECTION`, `ACCEPT_AI_CORRECTION`, `REJECT_AI_CORRECTION`,
+`KEEP_ORIGINAL`, `MANUAL_EDIT`). Estos valores viajan en el cuerpo de
+`POST /exams/{id}/questions/{qid}/decision`, así que son **contrato de API** y hay un test que los fija.
 
 ### A36 — `ExamAuditEvent` (dominio) y `AuditEvent` (núcleo) son cosas distintas
 El núcleo define `AuditEvent` (`core.audit`) como el evento genérico de auditoría de la aplicación. El
 dominio de exámenes define `ExamAuditEvent`, que además de `from_status`/`to_status` transporta el
 estado concreto de la transición. No se fusionan para no acoplar el dominio a la bitácora genérica
 (que además hoy es en memoria: ver A26).
+
+### A37 — El dominio no transporta las marcas de tiempo de persistencia
+El modelo de datos del prompt (sección 7) incluye `created_at` / `updated_at` en `Section`, `Question`
+y `GeneratedDocument`. El dominio **no** las lleva (salvo donde la lógica las necesita: `Exam`,
+`Block`, `ExamKey`, `GeneratedDocument` y `ExamAuditEvent`): son responsabilidad de la capa de
+persistencia, que las rellena al leer y al escribir. El mapeador del paso 4 (ORM → dominio) las
+descarta, y el inverso las escribe.
+
+Motivo: un objeto de dominio con marcas de tiempo heredadas del almacenamiento no se puede comparar de
+forma fiable (dos lecturas de la misma fila darían objetos distintos) y no aporta nada a las reglas.
+
+### A38 — `Option.question_id` se deriva del agregado, no se almacena en el objeto
+El prompt (sección 7) da a `Option` un `question_id`. En el dominio, los incisos cuelgan de su
+pregunta (`Question.options`), así que el identificador de la pregunta se obtiene del padre. La tabla
+de la base de datos sí lo tendrá (sección 7) y el mapeador del paso 4 lo ignora al construir el
+dominio.
+
+### A39 — `QuestionType` es una comodidad interna para la regla de "preguntas abiertas"
+El prompt (sección 6.5) dice que solo se admite opción múltiple y que "verdadero/falso y completar
+espacios se capturan como opción múltiple". El dominio declara `QuestionType` con esos cuatro valores
+para poder **explicar el error** de una pregunta abierta (`QUESTION_TYPE_UNSUPPORTED`) en lugar de
+devolver un error genérico. En la captura (Fase 2) el docente no elige el tipo: se deduce de la
+forma de captura.
+
+### A40 — El prompt se contradice en la dirección del mapa `option_order`; se adopta la de la sección 10
+La sección 7 dice "option_order (JSON: letra original → letra en la clave)" y la sección 10 dice
+"guardar el mapeo como **'nueva letra ← letra original'** (si el inciso original `d` pasa a la posición
+`a`, se guarda `a ← d`)". Son direcciones opuestas.
+
+Se adopta la de la **sección 10** (`nueva letra → letra original`) porque es la que acompaña al
+ejemplo numérico de la sección 10 y al caso de referencia de la sección 16 ("`a ← d`, `b ← c`"), que
+son los que la verificación de claves (`verify_keys`) y los tests de regresión van a comprobar. La
+sección 7 es un resumen de una línea y se considera una errata. **Reportado**, como pide la sección 19.
+
+### A41 — `course_code` es un aviso, no un error
+La regla 6.12 del prompt enumera los campos de cabecera obligatorios para el resumen: `exam_title`,
+`period` y `learning_unit` (opcionales: `academy` y `date`). `course_code` aparece en el modelo de
+datos (sección 7) pero **no** entre los obligatorios. Por eso, si falta, se emite el aviso
+`HEADER_COURSE_MISSING` y el examen sigue siendo válido: no se bloquea al docente por un campo que el
+prompt no exige.
+
+### A42 — Los códigos de regla que deben responder 409 se declaran en el dominio
+El prompt pide que el `exam_code` duplicado se responda con **409** (secciones 6.11 y 12) y que el
+resto de fallos de validación se traten como errores de validación (422). Para que la capa de aplicación
+no tenga que hardcodear la lista, el dominio declara `CONFLICT_CODES` y `RuleResult.conflict_codes` /
+`has_conflicts`: la API traduciéndolos a `ConflictError` (409) y el resto a `ValidationFailedError`
+(422).
+
 
 

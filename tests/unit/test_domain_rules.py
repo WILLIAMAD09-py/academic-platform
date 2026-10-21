@@ -60,12 +60,26 @@ def test_el_numero_de_preguntas_respeta_el_rango_configurado() -> None:
 def test_los_campos_obligatorios_de_la_cabecera_se_validan() -> None:
     exam = replace(make_exam(), title="  ", course_code="", period="", learning_unit="")
 
-    assert codigos(validate_header_fields(exam)) == [
+    errores = [issue for issue in validate_header_fields(exam) if issue.severity.value == "error"]
+    avisos = [issue for issue in validate_header_fields(exam) if issue.severity.value == "warning"]
+
+    assert codigos(errores) == [
         "HEADER_TITLE_REQUIRED",
-        "HEADER_COURSE_REQUIRED",
         "HEADER_PERIOD_REQUIRED",
         "HEADER_LEARNING_UNIT_REQUIRED",
     ]
+    assert codigos(avisos) == ["HEADER_COURSE_MISSING"]
+
+
+def test_el_codigo_de_materia_vacio_es_un_aviso_y_no_un_error() -> None:
+    """El prompt solo exige título, periodo y unidad (sección 6.12)."""
+    exam = replace(make_exam(), course_code="")
+
+    resultado = validate_exam(exam, LIMITS)
+
+    assert "HEADER_COURSE_MISSING" in resultado.warning_codes
+    assert "HEADER_COURSE_MISSING" not in resultado.error_codes
+    assert resultado.is_valid
 
 
 def test_una_cabecera_completa_no_produce_incidencias() -> None:
@@ -360,10 +374,43 @@ def test_la_validacion_agrega_errores_y_avisos() -> None:
     assert len(resultado.issues) == len(resultado.errors) + len(resultado.warnings)
 
 
+def test_los_avisos_de_las_reglas_mixtas_no_se_convierten_en_errores() -> None:
+    """`validate_blocks` devuelve avisos y errores: cada uno en su lista."""
+    exam = replace(
+        make_exam(),
+        blocks=(
+            make_block("blk-1", BlockKind.QUESTION_GROUP, ()),
+            make_block("blk-2", BlockKind.QUESTION_GROUP, ("q999",)),
+        ),
+    )
+
+    resultado = validate_exam(exam, LIMITS)
+
+    assert "BLOCK_EMPTY" in resultado.warning_codes
+    assert "BLOCK_EMPTY" not in resultado.error_codes
+    assert "BLOCK_MEMBER_UNKNOWN" in resultado.error_codes
+    assert len(resultado.issues) == len(resultado.errors) + len(resultado.warnings)
+
+
 def test_los_codigos_de_examen_existentes_producen_conflicto() -> None:
     resultado = validate_exam(make_exam(), LIMITS, existing_codes={"21643"})
 
     assert "EXAM_CODE_DUPLICATE" in resultado.error_codes
+
+
+def test_el_codigo_duplicado_se_marca_como_conflicto_409() -> None:
+    """El prompt pide 409 (no 422) cuando el `exam_code` ya existe."""
+    resultado = validate_exam(make_exam(), LIMITS, existing_codes={"21643"})
+
+    assert resultado.has_conflicts
+    assert resultado.conflict_codes == ("EXAM_CODE_DUPLICATE",)
+
+
+def test_un_examen_sin_conflictos_no_lo_declara() -> None:
+    resultado = validate_exam(make_exam(), LIMITS)
+
+    assert not resultado.has_conflicts
+    assert resultado.conflict_codes == ()
 
 
 def test_los_limites_por_defecto_coinciden_con_la_configuracion() -> None:

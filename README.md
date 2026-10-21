@@ -74,8 +74,13 @@ Para ejecutar la suite de tests **dentro del contenedor** (etapa `test` del `Doc
 dependencias de desarrollo):
 
 ```bash
+docker compose --profile test build tests   # la imagen de tests tiene su propia etiqueta
 docker compose --profile test run --rm tests
 ```
+
+> El servicio `tests` usa la imagen `academic-platform:0.1.0-test`, **distinta** de la del `app`
+> (`academic-platform:0.1.0`). Si cambias el código o las pruebas, hay que reconstruir la de tests
+> (`--profile test build tests`); el `app` sí monta `./src` en vivo.
 
 > Hasta el paso 2 el servicio `app` expone únicamente las rutas de salud. El montaje de los routers de
 > exámenes se incorpora en el paso 10. Ver `docs/ASSUMPTIONS.md` (A20, A23).
@@ -113,7 +118,8 @@ explícita).
 
 ## Ejecución del examen de ejemplo
 
-Disponible a partir del paso 11:
+Disponible a partir del paso 11. Mientras tanto, el comando de consola `exams-cli` (declarado en
+`pyproject.toml`) responde explicando que la CLI todavía no está implementada:
 
 ```bash
 python -m modules.exams.cli process --file tests/fixtures/examen_vc_ej26.json --keys 2 --out ./output
@@ -141,6 +147,17 @@ docs/                     # Prompt de fase, ADR, supuestos, arquitectura
 **Regla de dependencias:** `domain` no importa de `infrastructure` ni de `api`; `application` depende de
 `domain` y de interfaces; `infrastructure` implementa esas interfaces. Verificado por test de
 arquitectura.
+
+### Pendiente de la Fase 1 (por paso)
+
+| Pieza | Paso | Estado |
+|--------|------|--------|
+| `alembic.ini` + migraciones iniciales | 4 | Pendiente (`migrations/` preparado) |
+| `src/modules/exams/infrastructure/orm.py` y repositorios | 4 | Pendiente |
+| `docs/ARCHITECTURE.md` (diagramas Mermaid) | 12 | Pendiente |
+| `docs/exam-domain.md` (reglas en lenguaje natural) | 12 | Pendiente |
+| `tests/fixtures/examen_vc_ej26.json` y `exam_20_questions.json` | 11 | Pendiente |
+| CLI `python -m modules.exams.cli process` | 11 | Pendiente |
 
 ## Nota sobre el nombre del núcleo
 

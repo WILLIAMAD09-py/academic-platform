@@ -9,10 +9,14 @@ import pytest
 
 from modules.exams.domain.models import (
     BlockKind,
+    DecisionType,
+    DocumentKind,
     Exam,
     ExamStatus,
     QuestionType,
     ReviewLabel,
+    ReviewReason,
+    ReviewStatus,
 )
 from modules.exams.domain.states import InvalidTransitionError
 from tests.builders import make_block, make_exam, make_option, make_question, make_section
@@ -168,8 +172,59 @@ def test_la_seccion_conserva_su_orden_por_posicion() -> None:
 
 
 def test_la_revision_usa_etiquetas_bien_y_mal() -> None:
-    assert ReviewLabel.BIEN.value == "bien"
-    assert ReviewLabel.MAL.value == "mal"
+    assert ReviewLabel.BIEN.value == "BIEN"
+    assert ReviewLabel.MAL.value == "MAL"
+
+
+def test_el_vocabulario_de_revision_es_el_del_prompt() -> None:
+    """Los valores viajan a la API: no pueden cambiar sin romper el contrato."""
+    assert [estado.value for estado in ReviewStatus] == [
+        "PENDING",
+        "GOOD",
+        "AI_APPLIED",
+        "AI_PROPOSAL_PENDING",
+        "AMBIGUOUS_AWAITING_DECISION",
+        "KEPT_ORIGINAL_WITH_WARNING",
+        "RESOLVED",
+        "NEEDS_HUMAN",
+    ]
+    assert [motivo.value for motivo in ReviewReason] == [
+        "AMBIGUA",
+        "REBUSCADA",
+        "MAL_REDACTADA",
+        "ERRATA_ORTOGRAFICA",
+        "RESPUESTA_INCORRECTA_PROBABLE",
+        "INCISOS_DUPLICADOS",
+        "DISTRACTOR_EVIDENTE",
+        "REFERENCIA_A_OTRO_INCISO",
+    ]
+
+
+def test_el_vocabulario_de_decisiones_es_el_del_prompt() -> None:
+    """Es el mismo que viaja en `POST /exams/{id}/questions/{qid}/decision`."""
+    assert [decision.value for decision in DecisionType] == [
+        "UNDO_AI_CORRECTION",
+        "ACCEPT_AI_CORRECTION",
+        "REJECT_AI_CORRECTION",
+        "KEEP_ORIGINAL",
+        "MANUAL_EDIT",
+    ]
+
+
+def test_el_vocabulario_de_documentos_es_el_del_prompt() -> None:
+    assert [tipo.value for tipo in DocumentKind] == [
+        "EXAM_PRINT",
+        "ANSWER_SHEET_SUMMARY",
+    ]
+
+
+def test_una_pregunta_puede_apuntar_a_un_grupo_de_estimulo() -> None:
+    pregunta = make_question(1)
+
+    con_grupo = replace(pregunta, stimulus_group_id="stim-1")
+
+    assert con_grupo.stimulus_group_id == "stim-1"
+    assert make_question(2).stimulus_group_id is None
 
 
 def test_el_examen_por_defecto_esta_en_borrador() -> None:

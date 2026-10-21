@@ -30,6 +30,11 @@ LETRAS_INCISO: tuple[str, ...] = ("a", "b", "c", "d", "e")
 #: Patrón del código de examen: exactamente cinco dígitos.
 PATRON_CODIGO = re.compile(r"[0-9]{5}")
 
+#: Incidencias que la API debe traducir a **409 Conflict** (no a 422): el
+#: `exam_code` duplicado choca con un recurso existente, no con el formato de
+#: los datos (prompt, secciones 6.11 y 12).
+CONFLICT_CODES: frozenset[str] = frozenset({"EXAM_CODE_DUPLICATE"})
+
 
 class Severity(StrEnum):
     """Gravedad de una incidencia."""
@@ -83,6 +88,16 @@ class RuleResult:
     def warning_codes(self) -> tuple[str, ...]:
         """Códigos de los avisos."""
         return tuple(issue.code for issue in self.warnings)
+
+    @property
+    def conflict_codes(self) -> tuple[str, ...]:
+        """Códigos de error que la API traduce a 409 (conflicto), no a 422."""
+        return tuple(issue.code for issue in self.errors if issue.code in CONFLICT_CODES)
+
+    @property
+    def has_conflicts(self) -> bool:
+        """`True` si alguna incidencia debe responderse con 409."""
+        return bool(self.conflict_codes)
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,10 +217,15 @@ def validate_question_count(
 
 
 def validate_header_fields(exam: Exam) -> list[ValidationIssue]:
-    """La cabecera del examen tiene los campos obligatorios."""
+    """La cabecera del examen tiene los campos obligatorios.
+
+    Obligatorios (prompt, sección 6.12): título, periodo y unidad de
+    aprendizaje. `course_code` forma parte del modelo del examen (sección 7)
+    pero **no** figura entre los campos obligatorios del resumen: si falta, se
+    avisa en lugar de bloquear.
+    """
     obligatorios = (
         ("title", "HEADER_TITLE_REQUIRED", "título"),
-        ("course_code", "HEADER_COURSE_REQUIRED", "código de materia"),
         ("period", "HEADER_PERIOD_REQUIRED", "periodo"),
         ("learning_unit", "HEADER_LEARNING_UNIT_REQUIRED", "unidad de aprendizaje"),
     )
@@ -221,6 +241,19 @@ def validate_header_fields(exam: Exam) -> list[ValidationIssue]:
                     message=f"El {etiqueta} del examen es obligatorio.",
                 )
             )
+
+    if not str(exam.course_code).strip():
+        incidencias.append(
+            ValidationIssue(
+                code="HEADER_COURSE_MISSING",
+                field="course_code",
+                message=(
+                    "El código de materia del examen está vacío: revísalo antes "
+                    "de generar los documentos."
+                ),
+                severity=Severity.WARNING,
+            )
+        )
 
     return incidencias
 
@@ -584,7 +617,8 @@ def detect_option_references(exam: Exam) -> list[ValidationIssue]:
                             field="questions",
                             message=(
                                 f"La pregunta {pregunta.id} contiene la referencia "
-                                f"'{etiqueta}': sus incisos no pueden barajarse."
+                                f"'{etiqueta}': se sugiere desactivar "
+                                "`shuffle_options` o bloquear ese inciso."
                             ),
                             severity=Severity.WARNING,
                             location=pregunta.id,
@@ -609,7 +643,7 @@ def detect_natural_order(exam: Exam) -> list[ValidationIssue]:
                         field="questions",
                         message=(
                             f"La pregunta {pregunta.id} exige un orden natural "
-                            f"('{etiqueta}'): sus opciones no pueden barajarse."
+                            f"('{etiqueta}'): se sugiere desactivar `shuffle_options`."
                         ),
                         severity=Severity.WARNING,
                         location=pregunta.id,
@@ -654,12 +688,24 @@ def detect_duplicate_stems(exam: Exam) -> list[ValidationIssue]:
 # --- Agregación ---------------------------------------------------------------
 
 
+def _separar(
+    incidencias: list[ValidationIssue],
+) -> tuple[list[ValidationIssue], list[ValidationIssue]]:
+    """Separa las incidencias en errores y avisos según su gravedad."""
+    errores = [issue for issue in incidencias if issue.severity is Severity.ERROR]
+    avisos = [issue for issue in incidencias if issue.severity is not Severity.ERROR]
+    return errores, avisos
+
+
 def validate_exam(
     exam: Exam,
     limits: RuleLimits = RuleLimits(),
     existing_codes: Collection[str] = (),
 ) -> RuleResult:
     """Valida un examen completo y agrega errores y avisos.
+
+    Cada regla se ejecuta siempre **completa** (no se corta en el primer
+    fallo): el docente recibe la lista entera de lo que hay que corregir.
 
     Args:
         exam: Examen a validar.
@@ -669,18 +715,19 @@ def validate_exam(
     Returns:
         `RuleResult` con los errores y los avisos detectados.
     """
-    errores: list[ValidationIssue] = []
-    avisos: list[ValidationIssue] = []
+    incidencias: list[ValidationIssue] = []
 
-    errores.extend(validate_exam_code(exam.exam_code, existing_codes))
-    errores.extend(validate_question_count(len(exam.questions), limits))
-    errores.extend(validate_header_fields(exam))
-    errores.extend(validate_sections(exam))
-    errores.extend(validate_blocks(exam))
-    errores.extend(validate_questions(exam, limits))
+    incidencias.extend(validate_exam_code(exam.exam_code, existing_codes))
+    incidencias.extend(validate_question_count(len(exam.questions), limits))
+    incidencias.extend(validate_header_fields(exam))
+    incidencias.extend(validate_sections(exam))
+    incidencias.extend(validate_blocks(exam))
+    incidencias.extend(validate_questions(exam, limits))
 
-    avisos.extend(detect_option_references(exam))
-    avisos.extend(detect_natural_order(exam))
-    avisos.extend(detect_duplicate_stems(exam))
+    incidencias.extend(detect_option_references(exam))
+    incidencias.extend(detect_natural_order(exam))
+    incidencias.extend(detect_duplicate_stems(exam))
+
+    errores, avisos = _separar(incidencias)
 
     return RuleResult(errors=tuple(errores), warnings=tuple(avisos))

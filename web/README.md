@@ -39,12 +39,18 @@ OpenAPI).
 ```json
 {
   "error": {
-    "code": "EXAM_CODE_DUPLICATED",
+    "code": "conflict",
     "message": "Ya existe un examen con el código 21643.",
-    "details": {}
+    "details": { "exam_code": "21643", "rule": "EXAM_CODE_DUPLICATE" }
   }
 }
 ```
+
+El campo `code` es el de la **jerarquía de errores** del núcleo (`conflict`, `not_found`,
+`validation_failed`, `invalid_state`, `invalid_transition`...); el detalle de la regla de negocio
+que lo provoked va en `details.rule` con el código estable de la regla (por ejemplo
+`EXAM_CODE_DUPLICATE`). Los saltos de estado inválidos usan `invalid_transition` con
+`details.current` y `details.target`.
 
 ### Máquina de estados expuesta
 

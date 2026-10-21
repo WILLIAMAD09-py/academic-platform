@@ -44,37 +44,59 @@ class QuestionType(StrEnum):
 
 
 class ReviewStatus(StrEnum):
-    """Resultado de la revisión automática de una pregunta."""
+    """Estado de la revisión automática de una pregunta.
 
-    PENDING = "pending"
-    PASSED = "passed"
-    REJECTED = "rejected"
+    Vocabulario tomado de la sección 7 del prompt: `PENDING | GOOD | AI_APPLIED |
+    AI_PROPOSAL_PENDING | AMBIGUOUS_AWAITING_DECISION | KEPT_ORIGINAL_WITH_WARNING |
+    RESOLVED | NEEDS_HUMAN`.
+    """
+
+    PENDING = "PENDING"
+    GOOD = "GOOD"
+    AI_APPLIED = "AI_APPLIED"
+    AI_PROPOSAL_PENDING = "AI_PROPOSAL_PENDING"
+    AMBIGUOUS_AWAITING_DECISION = "AMBIGUOUS_AWAITING_DECISION"
+    KEPT_ORIGINAL_WITH_WARNING = "KEPT_ORIGINAL_WITH_WARNING"
+    RESOLVED = "RESOLVED"
+    NEEDS_HUMAN = "NEEDS_HUMAN"
 
 
 class ReviewLabel(StrEnum):
     """Etiqueta de la revisión de una pregunta (BIEN / MAL)."""
 
-    BIEN = "bien"
-    MAL = "mal"
+    BIEN = "BIEN"
+    MAL = "MAL"
 
 
 class ReviewReason(StrEnum):
-    """Motivo por el que una pregunta se marca como `MAL`."""
+    """Motivos por los que una pregunta se marca como `MAL`.
 
-    AMBIGUOUS = "ambigua"
-    INCOMPLETE = "incompleta"
-    INCORRECT = "incorrecta"
-    DUPLICATED = "duplicada"
-    OUT_OF_RANGE = "fuera_de_rango"
-    REFERENCES_OTHER_OPTIONS = "referencia_otros_incisos"
+    Vocabulario tomado de la sección 9 del prompt: el revisor devuelve estos
+    códigos como `reasons` y la aplicación los traduce a `ReviewAttempt`.
+    """
+
+    AMBIGUA = "AMBIGUA"
+    REBUSCADA = "REBUSCADA"
+    MAL_REDACTADA = "MAL_REDACTADA"
+    ERRATA_ORTOGRAFICA = "ERRATA_ORTOGRAFICA"
+    RESPUESTA_INCORRECTA_PROBABLE = "RESPUESTA_INCORRECTA_PROBABLE"
+    INCISOS_DUPLICADOS = "INCISOS_DUPLICADOS"
+    DISTRACTOR_EVIDENTE = "DISTRACTOR_EVIDENTE"
+    REFERENCIA_A_OTRO_INCISO = "REFERENCIA_A_OTRO_INCISO"
 
 
 class DecisionType(StrEnum):
-    """Decisión humana sobre una pregunta dudosa."""
+    """Decisión del docente sobre una pregunta.
 
-    APPROVE = "approve"
-    REJECT = "reject"
-    MODIFY = "modify"
+    Vocabulario tomado de las secciones 7, 9 y 12 del prompt: es el mismo que
+    viaja en el cuerpo de `POST /exams/{id}/questions/{qid}/decision`.
+    """
+
+    UNDO_AI_CORRECTION = "UNDO_AI_CORRECTION"
+    ACCEPT_AI_CORRECTION = "ACCEPT_AI_CORRECTION"
+    REJECT_AI_CORRECTION = "REJECT_AI_CORRECTION"
+    KEEP_ORIGINAL = "KEEP_ORIGINAL"
+    MANUAL_EDIT = "MANUAL_EDIT"
 
 
 class BlockKind(StrEnum):
@@ -101,11 +123,14 @@ class TemplateMode(StrEnum):
 
 
 class DocumentKind(StrEnum):
-    """Tipo de documento generado a partir de un examen."""
+    """Tipo de documento generado a partir de un examen.
 
-    EXAM = "exam"
-    EXAM_KEY = "exam_key"
-    ANSWER_SHEET = "answer_sheet"
+    Vocabulario de la sección 11 del prompt: un examen imprimible por clave y
+    el resumen de la hoja de respuestas.
+    """
+
+    EXAM_PRINT = "EXAM_PRINT"
+    ANSWER_SHEET_SUMMARY = "ANSWER_SHEET_SUMMARY"
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,6 +171,7 @@ class Question:
 
     id: str
     section_id: str
+    stimulus_group_id: str | None = None
     position_original: int = 0
     stem_original: str = ""
     stem_current: str = ""
@@ -251,7 +277,13 @@ class ExamKey:
 
 @dataclass(frozen=True, slots=True)
 class KeyQuestionMapping:
-    """Correspondencia entre una pregunta del examen y su posición en la clave."""
+    """Correspondencia entre una pregunta del examen y su posición en la clave.
+
+    `option_order` guarda el mapa **letra nueva -> letra original** (prompt,
+    sección 10: si el inciso original `d` pasa a la posición `a`, se guarda
+    `a -> d`). `correct_label_in_key` es la letra correcta **tal y como
+    aparece** en esa clave.
+    """
 
     id: str
     exam_key_id: str

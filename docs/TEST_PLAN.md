@@ -66,6 +66,20 @@ Estrategia de pruebas del proyecto. Se define **antes** de implementar cada paso
 - **Pureza**: en un proceso limpio, importar el dominio no carga FastAPI, SQLAlchemy, Pydantic ni
   Starlette; el análisis de imports prohíbe además `api` e `infrastructure`.
 
+## Reglas que不属于 al dominio (pasos posteriores)
+
+La sección 16 del prompt enumera pruebas obligatorias que **no** son reglas del dominio, sino del
+motor de aleatorización (paso 5). Se anotan aquí para no perderlas:
+
+- Un `QUESTION_GROUP` se mueve como unidad y un `SECTION_GROUP` intercambia secciones solo con otro
+  grupo del mismo tamaño.
+- Los incisos con `locked = true` nunca cambian de letra.
+- Nada cruza secciones y los incisos no salen de su pregunta; reproducibilidad con la misma seed y
+  `verify_keys` detecta violaciones inyectadas.
+
+El dominio solo aporta la **estructura** que esas reglas necesitan: los bloques (`Block`), la
+pertenencia de una pregunta a un grupo y la bandera `locked` del inciso.
+
 ## Anti-patrones evitados
 
 - No se prueba código de terceros ni getters triviales.
