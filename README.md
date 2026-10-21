@@ -8,7 +8,8 @@ imprimibles, claves aleatorizadas y resumen de hoja de respuestas.
 - Suposiciones: [`docs/ASSUMPTIONS.md`](docs/ASSUMPTIONS.md)
 - Decisiones de arquitectura: [`docs/ADR/`](docs/ADR/)
 
-> **Estado:** Fase 1 en curso. El paso 1 (scaffolding) está completo; los pasos 2–12 están pendientes.
+> **Estado:** Fase 1 en curso. Los pasos 1 (scaffolding) y 2 (núcleo `src/core/`) están completos; los
+> pasos 3–12 están pendientes.
 
 ## Stack
 
@@ -65,8 +66,9 @@ docker compose down         # Apaga el stack (conserva los datos)
 docker compose down -v      # Apaga el stack y borra el volumen de PostgreSQL
 ```
 
-La API responde `GET http://localhost:8000/health` con `200 {"status":"ok","version":"0.1.0"}`.
-El esquema OpenAPI está en `http://localhost:8000/docs`.
+La API responde `GET http://localhost:8000/health` con `200 {"status":"ok","version":"0.1.0"}` y
+`GET http://localhost:8000/health/ready` con `200 {"status":"ok","database":"ok"}` (consulta la base de
+datos; responde `503` si no está disponible). El esquema OpenAPI está en `http://localhost:8000/docs`.
 
 Para ejecutar la suite de tests **dentro del contenedor** (etapa `test` del `Dockerfile`, con las
 dependencias de desarrollo):
@@ -75,9 +77,23 @@ dependencias de desarrollo):
 docker compose --profile test run --rm tests
 ```
 
-> Hasta el paso 2 el servicio `app` expone únicamente la ruta de salud. La configuración, la base de
-> datos, el logging estructurado y el montaje de los routers de exámenes se incorporan en el paso 2.
-> Ver `docs/ASSUMPTIONS.md` (A20, A23).
+> Hasta el paso 2 el servicio `app` expone únicamente las rutas de salud. El montaje de los routers de
+> exámenes se incorpora en el paso 10. Ver `docs/ASSUMPTIONS.md` (A20, A23).
+
+## Núcleo (`src/core/`)
+
+| Módulo | Responsabilidad |
+|--------|-----------------|
+| `core/config.py` | `Settings` (Pydantic v2, inmutable) leída del entorno, con validación temprana del URL de base de datos, del nivel de log y de los rangos de negocio. |
+| `core/logging.py` | Logging estructurado en JSON con `exam_id`, `exam_code` y `request_id` en cada línea, propagados con `contextvars`. |
+| `core/errors.py` | Jerarquía de errores (`NotFoundError`, `ConflictError`, `InvalidStateError`, `ValidationFailedError`, `ExternalServiceError`) y su envelope JSON. |
+| `core/db.py` | Engine asíncrono agnóstico al motor (SQLite / PostgreSQL), `Base` declarativa, sesiones y dependencia `get_session`. |
+| `core/jobs.py` | Interfaz `JobRunner` (`Protocol`) e implementación `InlineJobRunner`, lista para sustituirse por Celery/RQ. |
+| `core/audit.py` | Interfaz `AuditLog` (`Protocol`) e implementación `InMemoryAuditLog`. |
+| `core/app.py` | Fábrica de la aplicación: logging, base de datos, middleware de correlación, manejadores de error y punto de extensión de routers. |
+
+Decisiones que lo gobiernan: [ADR-0003](docs/ADR/0003-nucleo-sin-estado-global.md) (núcleo sin estado
+global) y [ADR-0004](docs/ADR/0004-logging-estructurado-contextvars.md) (logging con `contextvars`).
 
 ## Ejecución del examen de ejemplo
 

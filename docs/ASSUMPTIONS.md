@@ -168,3 +168,31 @@ Desvío menor introducido en el paso 1: para que el `HEALTHCHECK` del contenedor
 pudieran verificarse de extremo a extremo, se creó una versión **mínima** de `core/app.py` (fábrica
 `create_app()` y ruta `GET /health`). El paso 2 amplía ese módulo con configuración, logging, base de
 datos y montaje de routers; no hay conflicto, solo se extiende.
+
+### A24 — La versión de la API sale de `core.__version__`, no de una variable de entorno
+El prompt no define una variable de entorno para la versión. Se usa `core.__version__` como única
+fuente de verdad: la usa FastAPI en el `openapi.json` y la devuelve `/health`. Por eso `API_VERSION`
+se retiró de `.env.example` en el paso 2 (mantener dos fuentes de verdad obligaría a sincronizarlas).
+
+### A25 — El `DATABASE_URL` de la aplicación debe ser **asíncrono**
+La capa de datos usa `AsyncSession`, por lo que el URL principal (`DATABASE_URL`) exige un driver
+asíncrono: `sqlite+aiosqlite` o `postgresql+psycopg`. Un URL síncrono (`postgresql://`) es un error de
+configuración y se rechaza **al arrancar**, con un mensaje explícito, en lugar de fallar en la primera
+petición. El URL síncrono (`DATABASE_URL_SYNC`) queda para Alembic y los scripts de línea de comandos.
+
+### A26 — La bitácora de auditoría del paso 2 es en memoria
+`AuditLog` es una interfaz (`Protocol`) y la implementación actual (`InMemoryAuditLog`) guarda los
+eventos en memoria del proceso. Es suficiente para el núcleo y para las pruebas, pero **no** es
+persistente: al reiniciar el proceso se pierde el historial. Cuando exista la tabla de auditoría del
+modelo de datos (paso 4), el repositorio sobre esa tabla sustituirá a `InMemoryAuditLog` sin tocar los
+servicios (ver ADR-0003).
+
+### A27 — El contexto de correlación no se propaga a hilos
+`contextvars` viaja con la tarea de `asyncio`, pero no con los hilos que ejecuta `run_in_threadpool`.
+El pipeline del paso 6 deberá abrir su propio `context_scope` por examen (ver ADR-0004); mientras
+tanto, el middleware de la API cubre el ciclo de vida de una petición.
+
+Consecuencia visible: las líneas de *access log* de Uvicorn se emiten fuera del `context_scope` del
+middleware (las registra el servidor, no la aplicación), así que llegan con `request_id: null`. Los
+logs de la propia aplicación (los que interesan para trazar un examen) sí llevan el identificador.
+
