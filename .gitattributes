@@ -1,0 +1,14 @@
+# Normaliza los finales de línea en el repositorio.
+* text=auto eol=lf
+
+# Documentos binarios: no tocar.
+*.docx binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.mp4 binary
+
+# Lockfiles y evidencias: se guardan tal cual.
+*.lock -text

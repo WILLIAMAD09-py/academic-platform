@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Entorno
+.env
+.env.*
+!.env.example
+
+# Herramientas
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Datos y artefactos
+*.db
+*.db-journal
+output/
+data/
+
+# opencode
+.opencode/node_modules/
+.opencode/package.json
+.opencode/package-lock.json
+# Copias duplicadas de los MD de entrada (el "(1)" del explorador de Windows).
+# Las versiones canónicas son .opencode/skills/AGENTS.md y docs/PROMPT_FASE1.md.
+.opencode/skills/AGENTS (1).md
+.opencode/skills/PROMPT_OPENCODE_v2 (1).md
+
+# IDE / SO
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
