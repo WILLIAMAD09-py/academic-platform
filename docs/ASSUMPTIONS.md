@@ -122,7 +122,11 @@ punta a punta:
 
 - `docker compose build` construye la imagen `academic-platform:0.1.0` sin errores.
 - `docker compose up -d db` levanta PostgreSQL 16.15 y el healthcheck pasa a `healthy`.
+- `docker compose up -d` levanta también `app`, que pasa a `healthy` y responde `GET /health` con
+  `200 {"status":"ok","version":"0.1.0"}`.
 - Desde la imagen de la app se abre una conexión real a PostgreSQL por la red de compose.
+- `docker compose --profile test run --rm tests` ejecuta la suite completa dentro del contenedor
+  (35 tests, cobertura 100 %).
 - El servicio `app` arranca y sale con `Exited (3)`: `Could not import module "core.app"`. Es el
   comportamiento esperado, no un fallo de la imagen (ver A23).
 
@@ -130,6 +134,15 @@ Limitación: en Windows 11 *Home* el único backend Linux disponible es WSL2, qu
 opcionales `Microsoft-Windows-Subsystem-Linux` y `VirtualMachinePlatform` (habilitadas con DISM) y una
 aplicación WSL (`Microsoft.WSL` 2.7.13). Docker Desktop requiere que el usuario acepte su acuerdo de
 licencia en el primer arranque gráfico.
+
+Detalles del `Dockerfile` que el test de humo destapó y que se corrigieron:
+
+- La imagen se divide en etapas `runtime` y `test`. La etapa por defecto de `docker build` es la
+  **última** del fichero, así que `docker-compose.yml` declara `target: runtime` de forma explícita
+  para el servicio `app`; sin eso, el servicio ejecutaba `pytest` en vez de `uvicorn`.
+- `ENV PYTHONPATH=/app/src` hace que el volumen `.:/app/src` sea efectivo: sin él, el paquete
+  instalado en `site-packages` tenía prioridad y las pruebas montadas en caliente no se aplicaban.
+- `.dockerignore` evita que `.venv`, `.git` y `node_modules` entren en el contexto de build.
 
 ### A21 — `libreoffice` (exportador PDF) es un adaptador opcional
 No se instala ni se invoca en tests. La interfaz queda definida y la implementación real se deja para
@@ -150,3 +163,8 @@ solo depende del `Protocol`.
 El `Dockerfile` arranca `uvicorn core.app:app`. Ese módulo es la fábrica de la aplicación FastAPI
 (configuración, logging estructurado y montaje de routers) y se crea en el paso 2 (núcleo compartido),
 de modo que la imagen sea coherente aunque los routers de exámenes lleguen en el paso 10.
+
+Desvío menor introducido en el paso 1: para que el `HEALTHCHECK` del contenedor y el test de humo
+pudieran verificarse de extremo a extremo, se creó una versión **mínima** de `core/app.py` (fábrica
+`create_app()` y ruta `GET /health`). El paso 2 amplía ese módulo con configuración, logging, base de
+datos y montaje de routers; no hay conflicto, solo se extiende.

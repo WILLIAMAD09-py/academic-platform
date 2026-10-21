@@ -1,10 +1,11 @@
 # syntax=docker/dockerfile:1
-FROM python:3.12-slim AS base
+FROM python:3.12-slim AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONPATH=/app/src
 
 WORKDIR /app
 
@@ -30,3 +31,24 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD curl -fsS http://localhost:8000/health || exit 1
 
 CMD ["uvicorn", "core.app:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# --- Etapa de tests -------------------------------------------------------
+# Variante con las dependencias de desarrollo para ejecutar la suite dentro
+# del contenedor: `docker compose --profile test run --rm tests`.
+#
+# Ojo: la etapa por defecto de `docker build` es la ULTIMA del fichero. Si esta
+# etapa se quedara al final, `docker compose build` construiria la imagen de
+# tests para el servicio `app`. Por eso se declara explicitamente `target` en
+# `docker-compose.yml` y la etapa de runtime se llama `runtime`.
+FROM runtime AS test
+
+COPY pyproject.toml README.md ./
+COPY src ./src
+COPY tests ./tests
+
+RUN pip install ".[dev]"
+
+# El contenedor de tests no levanta servidor: el healthcheck no aplica.
+HEALTHCHECK NONE
+
+CMD ["python", "-m", "pytest", "--cov=src", "-q"]

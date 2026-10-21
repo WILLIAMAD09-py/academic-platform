@@ -65,9 +65,19 @@ docker compose down         # Apaga el stack (conserva los datos)
 docker compose down -v      # Apaga el stack y borra el volumen de PostgreSQL
 ```
 
-> Hasta el paso 2 el servicio `app` sale con `Exited (3)` y el error
-> `Could not import module "core.app"`: el punto de entrada `core.app:app` se crea en el paso 2.
-> La imagen, la red y la conexión con PostgreSQL ya están verificadas. Ver `docs/ASSUMPTIONS.md` (A20, A23).
+La API responde `GET http://localhost:8000/health` con `200 {"status":"ok","version":"0.1.0"}`.
+El esquema OpenAPI está en `http://localhost:8000/docs`.
+
+Para ejecutar la suite de tests **dentro del contenedor** (etapa `test` del `Dockerfile`, con las
+dependencias de desarrollo):
+
+```bash
+docker compose --profile test run --rm tests
+```
+
+> Hasta el paso 2 el servicio `app` expone únicamente la ruta de salud. La configuración, la base de
+> datos, el logging estructurado y el montaje de los routers de exámenes se incorporan en el paso 2.
+> Ver `docs/ASSUMPTIONS.md` (A20, A23).
 
 ## Ejecución del examen de ejemplo
 

@@ -16,7 +16,9 @@ services:
       retries: 5
 
   app:
-    build: .
+    build:
+      context: .
+      target: runtime
     image: academic-platform:0.1.0
     depends_on:
       db:
@@ -34,6 +36,16 @@ services:
       - ./src:/app/src
       - ./migrations:/app/migrations
       - ./output:/app/output
+
+  tests:
+    build:
+      context: .
+      target: test
+    image: academic-platform:0.1.0-test
+    profiles: ["test"]
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:///./app.db
+    command: ["python", "-m", "pytest", "--cov=src", "-q"]
 
 volumes:
   pgdata:
