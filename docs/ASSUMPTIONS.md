@@ -116,10 +116,20 @@ La unicidad se garantiza con un índice único en base de datos además de la va
 `JobRunner` tiene una implementación `inline` (síncrona) para desarrollo y tests. La interfaz queda
 preparada para Celery/RQ (sección 3), pero **no** se introduce Redis ni Celery.
 
-### A20 — Docker no es verificable en este entorno
-`docker` no está instalado en la máquina de desarrollo. `Dockerfile` y `docker-compose.yml` se escriben
-en el paso 1 como exige la sección 4, pero **no se pueden construir ni ejecutar** aquí; se reportan como
-entregables no verificados.
+### A20 — Docker verificado en la máquina de desarrollo (con una limitación)
+Docker Desktop 4.96.0 quedó instalado y operativo (backend WSL2, motor 29.9.1) y el stack se verificó de
+punta a punta:
+
+- `docker compose build` construye la imagen `academic-platform:0.1.0` sin errores.
+- `docker compose up -d db` levanta PostgreSQL 16.15 y el healthcheck pasa a `healthy`.
+- Desde la imagen de la app se abre una conexión real a PostgreSQL por la red de compose.
+- El servicio `app` arranca y sale con `Exited (3)`: `Could not import module "core.app"`. Es el
+  comportamiento esperado, no un fallo de la imagen (ver A23).
+
+Limitación: en Windows 11 *Home* el único backend Linux disponible es WSL2, que exige las funciones
+opcionales `Microsoft-Windows-Subsystem-Linux` y `VirtualMachinePlatform` (habilitadas con DISM) y una
+aplicación WSL (`Microsoft.WSL` 2.7.13). Docker Desktop requiere que el usuario acepte su acuerdo de
+licencia en el primer arranque gráfico.
 
 ### A21 — `libreoffice` (exportador PDF) es un adaptador opcional
 No se instala ni se invoca en tests. La interfaz queda definida y la implementación real se deja para

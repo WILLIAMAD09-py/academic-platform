@@ -1,0 +1,50 @@
+# Contexto de build de Docker: solo lo necesario para construir la imagen.
+# Sin esto, .venv/ (cientos de MB) y .git/ se copiarian al contexto de build.
+
+# Control de versiones y metadatos
+.git
+.gitignore
+.gitattributes
+
+# Entornos virtuales
+.venv
+.venv-*
+venv
+env
+
+# Cache y artefactos de Python
+__pycache__
+**/__pycache__
+*.py[cod]
+*.egg-info
+src/*.egg-info
+build
+dist
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+.coverage.*
+coverage.xml
+htmlcov
+
+# Node (opencode)
+node_modules
+.opencode
+
+# Salidas generadas en runtime
+output
+*.log
+
+# Secretos: nunca deben entrar en la imagen.
+.env
+.env.*
+!.env.example
+
+# Documentacion: no es necesaria en runtime.
+docs
+web
+
+# Solo el README se copia (lo usa pyproject como readme del paquete).
+*.md
+!README.md

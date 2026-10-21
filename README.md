@@ -43,6 +43,32 @@ cp .env.example .env      # Windows: copy .env.example .env
 | Entorno con Docker | `docker compose up` |
 | API (local) | `uvicorn core.app:app --reload` |
 
+## Docker
+
+`docker compose` levanta **dos servicios** en una red privada:
+
+| Servicio | Imagen | Qué hace | Puerto |
+|----------|--------|----------|--------|
+| `db` | `postgres:16-alpine` | Base de datos de desarrollo. Datos persistidos en el volumen `pgdata`. Healthcheck con `pg_isready`. | `5432` |
+| `app` | `academic-platform:0.1.0` (se construye desde el `Dockerfile`) | La API FastAPI con `uvicorn core.app:app`. | `8000` |
+
+El `app` espera a que `db` esté `healthy` antes de arrancar (`depends_on: condition: service_healthy`).
+Los volúmenes `./src`, `./migrations` y `./output` se montan dentro del contenedor, de modo que el
+código se recarga sin reconstruir la imagen.
+
+```bash
+docker compose build        # Construye la imagen de la aplicación
+docker compose up -d        # Levanta db + app en segundo plano
+docker compose ps           # Estado y healthchecks
+docker compose logs -f app  # Logs de la API
+docker compose down         # Apaga el stack (conserva los datos)
+docker compose down -v      # Apaga el stack y borra el volumen de PostgreSQL
+```
+
+> Hasta el paso 2 el servicio `app` sale con `Exited (3)` y el error
+> `Could not import module "core.app"`: el punto de entrada `core.app:app` se crea en el paso 2.
+> La imagen, la red y la conexión con PostgreSQL ya están verificadas. Ver `docs/ASSUMPTIONS.md` (A20, A23).
+
 ## Ejecución del examen de ejemplo
 
 Disponible a partir del paso 11:
