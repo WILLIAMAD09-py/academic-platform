@@ -344,6 +344,21 @@ existentes: un hueco (por ejemplo posiciones 1 y 3 sin la 2) se considera un err
 (`SECTION_POSITION_NOT_CONTIGUOUS`), porque dejaría el orden indefinido. La comprobación se hace sobre
 las posiciones efectivamente presentes, de modo que no choca con `SECTION_POSITION_DUPLICATED`.
 
+### A44 — Banco de preguntas, multilingüismo y NLP quedan como extensión futura
+El responsable del producto quiere añadir, más adelante: (1) un banco de preguntas reutilizables con
+selección manual o asistida por el modelo, (2) soporte de inglés, francés y alemán con traducción
+(encoder/decoder) y (3) un modelo NLP local para revisar y corregir preguntas.
+
+Nada de esto pertenece a la Fase 1 (el prompt no contempla banco ni idiomas de contenido, y prohíbe
+entrenar o llamar modelos externos). Se decide **reservar los puntos de extensión** y congelar los
+contratos actuales: banco como agregado aparte con copia explícita al examen; idioma como dato del
+dominio con defecto español; traducción, selección asistida y NLP detrás de puertos con stub
+determinista. El detalle está en `docs/ADR/0006-extension-banco-idiomas-nlp.md`.
+
+Consecuencia inmediata: `Exam`, `Section`, `Question` y los vocabularios de la Fase 1 **no** cambian
+en los pasos siguientes por este motivo; cualquier añadido futuro será aditivo y con valor por defecto
+para no romper `tests/builders.py` ni los tests de vocabulario fijo.
+
 
 
 

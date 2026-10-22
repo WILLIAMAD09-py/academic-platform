@@ -159,6 +159,17 @@ arquitectura.
 | `tests/fixtures/examen_vc_ej26.json` y `exam_20_questions.json` | 11 | Pendiente |
 | CLI `python -m modules.exams.cli process` | 11 | Pendiente |
 
+## Fuera de la Fase 1 (extensión futura)
+
+Diseñados como puntos de extensión, no implementados todavía (ver
+`docs/ADR/0006-extension-banco-idiomas-nlp.md` y `docs/ASSUMPTIONS.md` A44):
+
+| Capacidad | Frontera reservada | Estado |
+|-----------|--------------------|--------|
+| Banco de preguntas (selección manual o por IA) | Agregado aparte + `QuestionBankRepository` + puerto `QuestionSelector`; instanciación por copia al examen | Futuro |
+| Multilingüe (ES/EN/FR/DE) | Enum `Language` en el dominio (defecto ES) y heurísticas parametrizadas por idioma | Futuro |
+| Traducción y NLP local (encoder/decoder) | Puertos `QuestionTranslator` y `QuestionReviewer` en `infrastructure/reviewers/` con stub determinista | Futuro |
+
 ## Nota sobre el nombre del núcleo
 
 El prompt de fase y `AGENTS.md` nombran el núcleo compartido `src/platform/`. Ese nombre **no es
