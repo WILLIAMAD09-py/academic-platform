@@ -337,5 +337,14 @@ no tenga que hardcodear la lista, el dominio declara `CONFLICT_CODES` y `RuleRes
 `has_conflicts`: la API traduciéndolos a `ConflictError` (409) y el resto a `ValidationFailedError`
 (422).
 
+### A43 — Las posiciones de sección deben ser contiguas (1..N)
+La regla 6.3 del prompt dice que el orden de las secciones **nunca cambia**, pero no fija cómo se
+representa. Se asume que `Section.position` empieza en 1 y es **contigua** para las N secciones
+existentes: un hueco (por ejemplo posiciones 1 y 3 sin la 2) se considera un error
+(`SECTION_POSITION_NOT_CONTIGUOUS`), porque dejaría el orden indefinido. La comprobación se hace sobre
+las posiciones efectivamente presentes, de modo que no choca con `SECTION_POSITION_DUPLICATED`.
+
+
+
 
 

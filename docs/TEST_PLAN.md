@@ -57,6 +57,9 @@ Estrategia de pruebas del proyecto. Se define **antes** de implementar cada paso
 - **Reglas**: un examen válido no produce incidencias; un código de examen con menos de cinco dígitos
   o ya existente produce error; una pregunta con dos incisos correctos produce error; una pregunta
   abierta produce un error explícito (`QUESTION_TYPE_UNSUPPORTED`).
+- **Secciones**: posiciones repetidas (`SECTION_POSITION_DUPLICATED`), negativas
+  (`SECTION_POSITION_INVALID`) o con huecos (`SECTION_POSITION_NOT_CONTIGUOUS`) producen error; una
+  pregunta que apunta a una sección inexistente produce `QUESTION_UNKNOWN_SECTION`.
 - **Avisos**: un enunciado que dice "todas las anteriores" produce aviso (no error); dos preguntas con
   el mismo enunciado (comparado tras normalizar) producen aviso.
 - **Ponderación**: los pesos suman **exactamente** 100,00 para cualquier cantidad de preguntas
@@ -66,7 +69,7 @@ Estrategia de pruebas del proyecto. Se define **antes** de implementar cada paso
 - **Pureza**: en un proceso limpio, importar el dominio no carga FastAPI, SQLAlchemy, Pydantic ni
   Starlette; el análisis de imports prohíbe además `api` e `infrastructure`.
 
-## Reglas que不属于 al dominio (pasos posteriores)
+## Reglas que no pertenecen al dominio (pasos posteriores)
 
 La sección 16 del prompt enumera pruebas obligatorias que **no** son reglas del dominio, sino del
 motor de aleatorización (paso 5). Se anotan aquí para no perderlas:

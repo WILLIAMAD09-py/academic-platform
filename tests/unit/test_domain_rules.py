@@ -5,7 +5,12 @@ from __future__ import annotations
 from dataclasses import replace
 
 from core.config import Settings
-from modules.exams.domain.models import BlockKind, Exam, QuestionType
+from modules.exams.domain.models import (
+    BlockKind,
+    Exam,
+    QuestionType,
+    Section,
+)
 from modules.exams.domain.rules import (
     RuleLimits,
     detect_duplicate_stems,
@@ -431,3 +436,22 @@ def test_la_validacion_no_modifica_el_examen() -> None:
 
     assert exam.status.value == "DRAFT"
     assert exam.questions[0].stem_current == "Enunciado de la pregunta 1"
+
+
+def test_validate_sections_detecta_posiciones_no_contiguas() -> None:
+    seccion_a = Section(id="s1", exam_id="e1", position=1)
+    seccion_c = Section(id="s2", exam_id="e1", position=3)
+    examen = Exam(
+        id="e1",
+        exam_code="12345",
+        title="T",
+        period="2026-1",
+        learning_unit="U",
+        course_code="VC",
+        teacher_id="t1",
+    )
+    examen = replace(examen, sections=(seccion_a, seccion_c), questions=())
+
+    incidencias = validate_sections(examen)
+
+    assert "SECTION_POSITION_NOT_CONTIGUOUS" in codigos(incidencias)

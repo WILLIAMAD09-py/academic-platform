@@ -304,6 +304,21 @@ def validate_sections(exam: Exam) -> list[ValidationIssue]:
         else:
             posiciones.add(seccion.position)
 
+    if posiciones:
+        esperadas = set(range(1, len(posiciones) + 1))
+        faltantes = sorted(esperadas - posiciones)
+        if faltantes:
+            incidencias.append(
+                ValidationIssue(
+                    code="SECTION_POSITION_NOT_CONTIGUOUS",
+                    field="sections",
+                    message=(
+                        "Las posiciones de las secciones deben ser contiguas "
+                        f"empezando en 1: faltan {', '.join(map(str, faltantes))}."
+                    ),
+                )
+            )
+
     ids_seccion = {seccion.id for seccion in exam.sections}
     for pregunta in exam.questions:
         if pregunta.section_id not in ids_seccion:
